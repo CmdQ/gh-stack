@@ -16,6 +16,8 @@ metadata:
 
 This skill applies to both Git and [JJ / Jujutsu](https://jj-vcs.github.io/jj/latest/)-oriented workflows. `gh stack` itself operates on GitHub PRs and Git-backed branch state, so many examples below use `git`. Do **not** steer JJ users into a Git-first local workflow just because the examples are Git-flavored: keep their JJ mental model and only introduce direct Git commands when a specific tool requires them.
 
+For JJ users, the pairing is especially strong: JJ already excels at managing a chain of local changes, cascading rebases when a lower layer moves, and carrying conflicts as first-class state. `gh stack` complements that by turning those local layers into a GitHub PR chain with focused per-layer diffs, stack navigation, and stack-aware merge flow. Treat that as an alignment, not a mismatch.
+
 ```
 main (trunk)
  └── feat/auth-layer     → PR #1 (base: main)               - bottom (closest to trunk)
@@ -31,6 +33,7 @@ Use this skill when the user wants to:
 
 - Break a large change into a chain of small, reviewable PRs
 - Create, rebase, push, or sync a stack of dependent branches
+- Map a JJ change/commit chain onto a stack of GitHub PR layers
 - Navigate between layers of a branch stack
 - View the status of stacked PRs
 - Tear down and rebuild a stack to remove, reorder, or rename branches
@@ -82,6 +85,8 @@ Each branch in a stack should represent a **discrete, logical unit of work** tha
 ### Dependency chain
 
 Stacked branches form a dependency chain: each branch builds on the one below it. This means **foundational changes must go in lower (earlier) branches**, and code that depends on them goes in higher (later) branches.
+
+For JJ users, the mental model is nearly identical: a chain of JJ changes maps naturally to a chain of review layers. In practice, that usually means one logical JJ commit/change per PR layer, with `gh stack` handling the GitHub presentation of the stack while JJ handles the local rewrite/rebase workflow.
 
 **Plan your layers before writing code.** For example, a full-stack feature might be structured like this (use branch names relevant to your actual task, not these generic ones):
 
