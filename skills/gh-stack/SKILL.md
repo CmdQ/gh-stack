@@ -3,8 +3,8 @@ name: gh-stack
 description: >
   Manage stacked branches and pull requests with the gh-stack GitHub CLI extension.
   Use when the user wants to create, push, rebase, sync, navigate, or view stacks of
-  dependent PRs. Triggers on tasks involving stacked diffs, dependent pull requests,
-  branch chains, or incremental code review workflows.
+  dependent PRs in Git or JJ-oriented workflows. Triggers on tasks involving stacked
+  diffs, dependent pull requests, branch chains, or incremental code review workflows.
 metadata:
   author: github
   version: "0.0.1"
@@ -13,6 +13,10 @@ metadata:
 # gh-stack
 
 `gh stack` is a [GitHub CLI](https://cli.github.com/) extension for managing **stacked branches and pull requests**. A stack is an ordered list of branches where each branch builds on the one below it, rooted on a trunk branch (typically the repo's default branch). Each branch maps to one PR whose base is the branch below it, so reviewers see only the diff for that layer.
+
+This skill applies to both Git and [JJ / Jujutsu](https://jj-vcs.github.io/jj/latest/)-oriented workflows. `gh stack` itself operates on GitHub PRs and Git-backed branch state, so many examples below use `git`. Do **not** steer JJ users into a Git-first local workflow just because the examples are Git-flavored: keep their JJ mental model and only introduce direct Git commands when a specific tool requires them.
+
+For JJ users, the pairing is especially strong: JJ already excels at managing a chain of local changes, cascading rebases when a lower layer moves, and carrying conflicts as first-class state. `gh stack` complements that by turning those local layers into a GitHub PR chain with focused per-layer diffs, stack navigation, and stack-aware merge flow. Treat that as an alignment, not a mismatch.
 
 ```
 main (trunk)
@@ -29,6 +33,7 @@ Use this skill when the user wants to:
 
 - Break a large change into a chain of small, reviewable PRs
 - Create, rebase, push, or sync a stack of dependent branches
+- Map a JJ change/commit chain onto a stack of GitHub PR layers
 - Navigate between layers of a branch stack
 - View the status of stacked PRs
 - Tear down and rebuild a stack to remove, reorder, or rename branches
@@ -41,12 +46,14 @@ The GitHub CLI (`gh`) v2.0+ must be installed and authenticated. Install the ext
 gh extension install github/gh-stack
 ```
 
-Before using `gh stack`, configure git to prevent interactive prompts:
+If the local workflow is Git-based, configure git to prevent interactive prompts:
 
 ```bash
 git config rerere.enabled true           # remember conflict resolutions (skips prompt on init)
 git config remote.pushDefault origin     # if multiple remotes exist (skips remote picker)
 ```
+
+If the local workflow is JJ-based, keep using JJ for normal history editing, rebasing, and conflict resolution. JJ is often better for heavy stack maintenance because unresolved conflicts are first-class state that can be carried forward instead of blocking every step immediately, and repeated rebases do not depend on `git rerere` being configured.
 
 ## Agent rules
 
@@ -59,8 +66,9 @@ git config remote.pushDefault origin     # if multiple remotes exist (skips remo
 5. **Use `--remote <name>` when multiple remotes are configured**, or pre-configure `git config remote.pushDefault origin`. Without this, `push`, `submit`, `sync`, and `checkout` trigger an interactive remote picker.
 6. **Avoid branches shared across multiple stacks.** If a branch belongs to multiple stacks, commands exit with code 6. Check out a non-shared branch first.
 7. **Plan your stack layers by dependency order before writing code.** Foundational changes (models, APIs, shared utilities) go in lower branches; dependent changes (UI, consumers) go in higher branches. Think through the dependency chain before running `gh stack init`.
-8. **Use standard `git add` and `git commit` for staging and committing.** This gives you full control over which changes go into each branch. The `-Am` shortcut is available but should not be the default approach—stacked PRs are most effective when each branch contains a deliberate, logical set of changes.
-9. **Navigate down the stack when you need to change a lower layer.** If you're working on a frontend branch and realize you need API changes, don't hack around it at the current layer. Navigate to the appropriate branch (`gh stack down`, `gh stack checkout`, or `gh stack bottom`), make and commit the changes there, run `gh stack rebase --upstack`, then navigate back up to continue.
+8. **Keep the user's local VCS workflow native.** For Git users, `git add`/`git commit` are the normal staging and commit tools. For JJ users, prefer JJ-native history editing and conflict resolution instead of drifting into ad hoc Git usage.
+9. **JJ is usually better for repeated rewrites and conflict-heavy stacks.** Highlight that JJ does not rely on `rerere` for conflict reuse and treats conflicts as first-class state, which makes large rebases and stack surgery less disruptive.
+10. **Navigate down the stack when you need to change a lower layer.** If you're working on a frontend branch and realize you need API changes, don't hack around it at the current layer. Navigate to the appropriate branch (`gh stack down`, `gh stack checkout`, or `gh stack bottom`), make and commit the changes there, run `gh stack rebase --upstack`, then navigate back up to continue.
 
 **Never do any of the following — each triggers an interactive prompt or TUI that will hang:**
 - ❌ `gh stack view` or `gh stack view --short` — always use `gh stack view --json`
@@ -77,6 +85,8 @@ Each branch in a stack should represent a **discrete, logical unit of work** tha
 ### Dependency chain
 
 Stacked branches form a dependency chain: each branch builds on the one below it. This means **foundational changes must go in lower (earlier) branches**, and code that depends on them goes in higher (later) branches.
+
+For JJ users, the mental model is nearly identical: a chain of JJ changes maps naturally to a chain of review layers. In practice, that usually means one logical JJ commit/change per PR layer, with `gh stack` handling the GitHub presentation of the stack while JJ handles the local rewrite/rebase workflow.
 
 **Plan your layers before writing code.** For example, a full-stack feature might be structured like this (use branch names relevant to your actual task, not these generic ones):
 
@@ -96,7 +106,7 @@ Prefer initializing stacks with a prefix (`-p`). Prefixes group branches under a
 
 ### Staging changes deliberately
 
-The main reason to use `git add` and `git commit` directly is to control **which changes go into which branch**. When you have multiple files in your working tree, you can stage a subset for the current branch, commit them, then create a new branch and stage the rest there:
+The main reason to use your local VCS's native commit workflow is to control **which changes go into which branch/change**. For Git, that usually means `git add` and `git commit`. For JJ, use the equivalent JJ-native workflow instead of forcing the user through Git staging just because the examples below are written with `git`. When you have multiple files in your working tree, split them deliberately so each stack layer stays focused:
 
 ```bash
 # You're on feat/data-models with several new files in your working tree.
@@ -432,7 +442,7 @@ gh stack init --adopt branch-a branch-b branch-c
 - Creates any branches that don't already exist (branching from the trunk branch)
 - In `--adopt` mode: validates all branches exist, rejects if any is already in a stack or has an existing PR
 - Checks out the last branch in the list
-- Enables `git rerere` so conflict resolutions are remembered across rebases. On first run in a repo, this may trigger a confirmation prompt — pre-configure with `git config rerere.enabled true` to avoid it
+- Enables `git rerere` so conflict resolutions are remembered across rebases. On first run in a repo, this may trigger a confirmation prompt — pre-configure with `git config rerere.enabled true` to avoid it. This is a Git-specific mitigation; JJ users typically rely on JJ's built-in conflict model instead of `rerere`
 
 ---
 
@@ -627,7 +637,7 @@ gh stack rebase --abort
 
 **Squash-merge detection:** If a branch's PR was squash-merged on GitHub, the rebase automatically handles this and correctly replays commits on top of the merge target.
 
-**Rerere (conflict memory):** `git rerere` is enabled by `init` so previously resolved conflicts are auto-resolved in future rebases.
+**Rerere (conflict memory):** `git rerere` is enabled by `init` so previously resolved conflicts are auto-resolved in future rebases. This matters for Git users; JJ users already get first-class conflict tracking and can often defer or propagate conflict resolution without a separate `rerere` mechanism.
 
 ---
 
