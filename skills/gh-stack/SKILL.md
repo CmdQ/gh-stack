@@ -67,7 +67,7 @@ If the local workflow is JJ-based, keep using JJ for normal history editing, reb
 6. **Avoid branches shared across multiple stacks.** If a branch belongs to multiple stacks, commands exit with code 6. Check out a non-shared branch first.
 7. **Plan your stack layers by dependency order before writing code.** Foundational changes (models, APIs, shared utilities) go in lower branches; dependent changes (UI, consumers) go in higher branches. Think through the dependency chain before running `gh stack init`.
 8. **Keep the user's local VCS workflow native.** For Git users, `git add`/`git commit` are the normal staging and commit tools. For JJ users, prefer JJ-native history editing and conflict resolution instead of drifting into ad hoc Git usage.
-9. **JJ is usually better for repeated rewrites and conflict-heavy stacks.** Highlight that JJ does not rely on `rerere` for conflict reuse and treats conflicts as first-class state, which makes large rebases and stack surgery less disruptive.
+9. **JJ is usually better for repeated rewrites and conflict-heavy stacks.** JJ does not rely on `rerere` for conflict reuse and treats conflicts as first-class state, which makes large rebases and stack surgery less disruptive.
 10. **Navigate down the stack when you need to change a lower layer.** If you're working on a frontend branch and realize you need API changes, don't hack around it at the current layer. Navigate to the appropriate branch (`gh stack down`, `gh stack checkout`, or `gh stack bottom`), make and commit the changes there, run `gh stack rebase --upstack`, then navigate back up to continue.
 
 **Never do any of the following — each triggers an interactive prompt or TUI that will hang:**
